@@ -72,6 +72,13 @@ def run_ingestion(
     ingest_run_id = str(uuid.uuid4())
     sig = embedder_signature(embedder_config)
 
+    n_specs = len(entity_specs)
+    logger.info(
+        "Starting ingestion: %d articles (Wikipedia → chunk → embed → Chroma). "
+        "This can take several minutes (API spacing + Ollama embeddings).",
+        n_specs,
+    )
+
     attempted = 0
     succeeded = 0
     failed = 0
@@ -81,6 +88,13 @@ def run_ingestion(
     for entity_name, entity_type in entity_specs:
         attempted += 1
         try:
+            logger.info(
+                "[%d/%d] Fetching from Wikipedia: %r (%s)",
+                attempted,
+                n_specs,
+                entity_name,
+                entity_type,
+            )
             art = fetch_wikipedia_plaintext(entity_name, language="en")
             chunks = chunk_article(
                 art.plaintext,
@@ -90,6 +104,13 @@ def run_ingestion(
             )
             for c in chunks:
                 staged.append((c, art.wikipedia_title))
+            logger.info(
+                "[%d/%d] Got %d chunk(s) for %r",
+                attempted,
+                n_specs,
+                len(chunks),
+                entity_name,
+            )
             succeeded += 1
         except (ArticleNotFoundError, WikipediaHTTPError, OSError) as e:
             logger.warning("Ingest failed for %r: %s", entity_name, e)
@@ -102,6 +123,10 @@ def run_ingestion(
                 time.sleep(FETCH_DELAY_S)
 
     if not staged:
+        logger.error(
+            "No chunks were staged (all Wikipedia fetches failed or produced no text). "
+            "Fix network/SSL/Ollama and retry; Chroma was not updated.",
+        )
         return {
             "entities_attempted": attempted,
             "entities_succeeded": succeeded,
@@ -109,12 +134,25 @@ def run_ingestion(
             "chunks_upserted": 0,
         }
 
+    logger.info(
+        "Fetching done. Embedding %d chunks with %s/%s (Ollama/host as configured) …",
+        len(staged),
+        embedder_config.backend,
+        embedder_config.model_name,
+    )
+
     texts = [c.text for c, _ in staged]
     embeddings = embed_texts(texts, embedder_config)
     if len(embeddings) != len(staged):
         raise RuntimeError("Internal error: embedding count does not match chunk count")
     dim = len(embeddings[0])
     ensure_collection(chroma_config, embedding_dimension=dim)
+
+    logger.info(
+        "Writing vectors to Chroma: %r / collection %r …",
+        chroma_config.persist_directory,
+        chroma_config.collection_name,
+    )
 
     ids: list[str] = []
     documents: list[str] = []
