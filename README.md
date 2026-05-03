@@ -6,6 +6,37 @@ Python app that answers questions about **people and places** using **locally em
 
 **Use these steps from the project root** (`local-wikipedia-rag-assistant`) so `./chroma_db` and imports resolve correctly.
 
+## How it works
+
+The app is **retrieval-augmented generation (RAG)**: the model is only asked to answer from **short passages** retrieved from a **local vector index**, not from “the whole internet” at answer time.
+
+### 1. Offline: build the vector index
+
+You run **`python -m ingest.run_ingest`** once (or again after changing the article list or embedder).
+
+1. **Fetch** each configured article from **Wikipedia** over HTTPS (MediaWiki API; see `ingest/fetcher.py`).
+2. **Chunk** the article text so long pages become many overlapping segments. Splitting is guided by **wiki section headings** where possible, then by size limits, so each chunk stays topically coherent (`ingest/chunker.py`).
+3. **Embed** every chunk with **`nomic-embed-text`** via **Ollama** — the same setup must be used when you ask questions later (`ingest/embedder.py`).
+4. **Store** embeddings and text in **Chroma** under **`./chroma_db`**. Every chunk carries **metadata**: at least **entity name**, **`person` or `place`**, **source URL**, plus fields like section title for transparency (`ingest/store.py`).
+
+All people and places live in **one Chroma collection**. That avoids maintaining two separate indexes; filters at query time narrow by type when appropriate.
+
+### 2. Online: answer a user question
+
+The **Streamlit** UI calls **`ask()`** in `app.py`. That path is always the same:
+
+1. **Classify** the question with a small **keyword / rule-based router**: is it mainly about a **person**, a **place**, or **ambiguous / both** (`core/router.py`)?
+2. **Embed** the question with the **same embedding model** as ingest.
+3. **Retrieve** the **top‑k** most similar chunks from Chroma using **cosine-style** vector search. If the router picked person or place, Chroma queries include a **`entity_type`** filter; if ambiguous, search runs **without** that filter so mixed questions can pull from either kind of article (`core/retriever.py`).
+4. If retrieval returns **fewer than k hits** while a narrow filter was used, **`ask()`** **retries once** with **no type filter** so borderline wording does not silently miss relevant text.
+5. **Generate**: the **`llama3.2`** (or configured) chat model receives a **structured prompt**: system rules + serialized context chunks + user question. It is instructed to stay grounded and to reply **`I don't know`** when context is insufficient (`core/generator.py`).
+
+Nothing in this path calls remote LLM or embedding APIs; only **Wikipedia** is contacted during **ingest**, and **Ollama** during **embed + generate**.
+
+### Where to go deeper
+
+Chunk sizes, metadata field list, routing rules, and prompt wording are specified in [`docs/architecture.md`](docs/architecture.md). The product goals and constraints are in [`product_prd.md`](product_prd.md).
+
 ---
 
 ## 1. Install dependencies
