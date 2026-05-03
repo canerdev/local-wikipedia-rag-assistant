@@ -1,5 +1,7 @@
 # Local Wikipedia RAG Assistant
 
+**Demo video:** [Screen recording on Google Drive](https://drive.google.com/file/d/1kdJzzIXRs0H_CH8anQ1BXlkQLBZUFvAk/view?usp=sharing)
+
 Python app that answers questions about **people and places** using **locally embedded Wikipedia chunks**, **Chroma** on disk, and **Ollama** for embeddings + chat. Runs on **localhost** only (no paid LLM/embedding APIs).
 
 **Use these steps from the project root** (`local-wikipedia-rag-assistant`) so `./chroma_db` and imports resolve correctly.
