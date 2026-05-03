@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local Chroma persistence (chunks + embeddings; run ingest — do not commit)
+chroma_db/

@@ -57,7 +57,7 @@ You should see both models listed.
 
 ## 3. Ingest data
 
-This step downloads Wikipedia articles over HTTPS, chunks them, embeds with **`nomic-embed-text`** via Ollama, and writes a persistent store under **`./chroma_db`**. Needs **internet** and a working Ollama embed model.
+This step downloads Wikipedia articles over HTTPS, chunks them, embeds with **`nomic-embed-text`** via Ollama, and writes a persistent store under **`./chroma_db`** *(local only — not checked into git; rerun ingest after clone)*. Needs **internet** and a working Ollama embed model.
 
 With the venv **activated**, from the project root:
 
